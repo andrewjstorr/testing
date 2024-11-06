@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Interactive table extension with Excel-like features",
   "extension_api_version": "1.0",
-  "url": "https://github.com/andrewjstorr/testing.git",
+  "url": "http://andrewjstorr.github.io/testing/",
   "permissions": [
     "full_data"
   ]
