@@ -6,26 +6,27 @@
     <style>
         body { 
             font-family: Arial, sans-serif;
-            margin: 20px;
+        margin: 20px;
         }
         #debug {
             background: #f0f0f0;
-            padding: 10px;
+        padding: 10px;
             margin-bottom: 10px;
             font-family: monospace;
             white-space: pre-wrap;
         }
         table {
             border-collapse: collapse;
-            width: 100%;
+        width: 100%;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+        padding: 8px;
             text-align: left;
         }
         th {
             background-color: #f5f5f5;
+        cursor: pointer; /* Indicate that headers are clickable for sorting */
         }
     </style>
 </head>
@@ -36,85 +37,97 @@
     <script>
         function log(message) {
             const debug = document.getElementById('debug');
-            debug.innerHTML += '\n' + message;
+        debug.innerHTML += '\n' + message;
             console.log(message);
         }
 
-        window.onload = function() {
-            // Initialize with explicit configuration
-            tableau.extensions.initializeAsync({
-                configure: function() { log('Configure called'); }
-            }).then(function() {
+        window.onload = async function() {
+            try {
+                await tableau.extensions.initializeAsync({
+                    configure: function() { log('Configure called'); }
+                });
                 log('Extension initialized');
-                
-                // Get the worksheet
+    
                 const worksheet = tableau.extensions.worksheetContent.worksheet;
                 log('Got worksheet: ' + worksheet.name);
 
-                // Check if we have permission to access the data
                 if (!tableau.extensions.environment.permissionCheck('full-data')) {
                     log('No full data permission - requesting access');
-                    // If we don't have permission, let's try to get it
-                    return tableau.extensions.requestFullDataPermission();
+                    await tableau.extensions.requestFullDataPermission();
                 } else {
                     log('Full data permission already granted');
-                    return Promise.resolve();
                 }
-            }).then(function() {
-                // Now that we have permission, get the data
-                const worksheet = tableau.extensions.worksheetContent.worksheet;
-                
-                // First try getUnderlyingTablesAsync
-                return worksheet.getUnderlyingTablesAsync().then(function(tables) {
+
+                let tableData;
+                try {
+                    const tables = await worksheet.getUnderlyingTablesAsync();
                     log('Found ' + tables.length + ' underlying tables');
                     if (tables.length > 0) {
-                        return worksheet.getUnderlyingTableDataAsync(tables[0].id);
+                        tableData = await worksheet.getUnderlyingTableDataAsync(tables[0].id);
                     } else {
-                        // If no underlying tables, fall back to summary data
                         log('No underlying tables, trying summary data');
-                        return worksheet.getSummaryDataAsync();
+                        tableData = await worksheet.getSummaryDataAsync();
                     }
-                }).catch(function(err) {
-                    // If getUnderlyingTablesAsync fails, try summary data
+                } catch (err) {
                     log('Error getting underlying tables: ' + err);
                     log('Falling back to summary data');
-                    return worksheet.getSummaryDataAsync();
-                });
-            }).then(function(tableData) {
+                    tableData = await worksheet.getSummaryDataAsync();
+                }
+
                 log('Got data successfully');
                 log('Columns: ' + tableData.columns.map(c => c.fieldName).join(', '));
                 log('Rows: ' + tableData.data.length);
 
-                // Create table HTML
-                let tableHtml = '<table>';
-                
-                // Headers
-                tableHtml += '<tr>';
-                tableData.columns.forEach(function(column) {
-                    tableHtml += '<th>' + column.fieldName + '</th>';
-                });
-                tableHtml += '</tr>';
-                
-                // Data
-                tableData.data.forEach(function(row) {
-                    tableHtml += '<tr>';
-                    row.forEach(function(cell) {
-                        tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
-                    });
-                    tableHtml += '</tr>';
-                });
-                
-                tableHtml += '</table>';
-                document.getElementById('tableContainer').innerHTML = tableHtml;
-                log('Table rendered');
-                
-            }).catch(function(err) {
+                renderTable(tableData);
+
+            } catch (err) {
                 log('ERROR: ' + err.toString());
                 log('Error details: ' + JSON.stringify(err, Object.getOwnPropertyNames(err)));
-            });
+            }
         };
 
-        // Add error handling for uncaught errors
+        function renderTable(tableData) {
+            let tableHtml = '<table>';
+            tableHtml += '<thead><tr>';
+            tableData.columns.forEach((column, index) => {
+                tableHtml += `<th data-colindex="${index}">${column.fieldName}</th>`;
+            });
+            tableHtml += '</tr></thead>';
+            tableHtml += '<tbody>';
+            tableData.data.forEach(function(row) {
+                tableHtml += '<tr>';
+                row.forEach(function(cell) {
+                    tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
+                });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table>';
+            document.getElementById('tableContainer').innerHTML = tableHtml;
+
+            // Add sorting functionality
+            const table = document.querySelector('table');
+            const headers = table.querySelectorAll('th');
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const colIndex = header.dataset.colindex;
+                    sortTable(table, colIndex);
+                });
+            });
+        }
+
+        function sortTable(table, colIndex) {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                const aValue = a.cells[colIndex].textContent;
+                const bValue = b.cells[colIndex].textContent;
+                return aValue.localeCompare(bValue);
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
         window.onerror = function(msg, url, lineNo, columnNo, error) {
             log('ERROR: ' + msg);
             log('Location: ' + lineNo + ':' + columnNo);
