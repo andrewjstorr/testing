@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>Tableau Table Extension</title>
-    <!-- Updated Tableau API script -->
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
@@ -63,29 +62,48 @@
 
         // Initialize the extension
         tableau.extensions.initializeAsync().then(() => {
-            // Get the worksheet
-            const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
+            // Get all worksheets
+            const worksheets = tableau.extensions.dashboardContent.dashboard.worksheets;
             
-            // Get the summary data
-            worksheet.getSummaryDataAsync().then((dataTable) => {
-                // Get column names
-                columns = dataTable.columns.map(column => column.fieldName);
-                
-                // Get data
-                worksheetData = dataTable.data.map(row => 
-                    row.map(cell => cell.value)
-                );
-                
-                // Render the table
-                renderTable(worksheetData);
-                setupEventListeners();
-            });
+            // Use the active worksheet or the first one
+            const worksheet = worksheets.find(w => w.name === 'Sheet 1') || worksheets[0];
+            
+            if (worksheet) {
+                // Get the data
+                worksheet.getSummaryDataAsync().then((dataTable) => {
+                    console.log('Data received:', dataTable);
+                    
+                    // Get column names
+                    columns = dataTable.columns.map(column => column.fieldName);
+                    console.log('Columns:', columns);
+                    
+                    // Get data
+                    worksheetData = dataTable.data.map(row => 
+                        row.map(cell => cell.value)
+                    );
+                    console.log('Data:', worksheetData);
+                    
+                    // Render the table
+                    renderTable(worksheetData);
+                    setupEventListeners();
+                }).catch(error => {
+                    console.error('Error getting data:', error);
+                    document.body.innerHTML = `Error getting data: ${error.message}`;
+                });
+            } else {
+                document.body.innerHTML = 'No worksheet found';
+            }
         }).catch((error) => {
             console.error('Error initializing extension:', error);
             document.body.innerHTML = `Error initializing extension: ${error.message}`;
         });
 
         function renderTable(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('tableContainer').innerHTML = 'No data available';
+                return;
+            }
+
             const table = document.createElement('table');
             
             // Create header
