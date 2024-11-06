@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tableau Table Extension</title>
+    <title>Simple Table Extension</title>
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
@@ -19,121 +19,55 @@
         }
         th {
             background-color: #f5f5f5;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-        .search-container {
-            margin-bottom: 10px;
-        }
-        #searchInput {
-            padding: 5px;
-            width: 200px;
-            margin-right: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="search-container">
-        <input type="text" id="searchInput" placeholder="Search...">
-        <button onclick="exportToCSV()">Export to CSV</button>
-    </div>
-    <div id="tableContainer"></div>
+    <div id="tableContainer">Loading...</div>
 
     <script>
-        // Initialize extension and get data
-        tableau.extensions.initializeAsync().then(() => {
-            const worksheet = tableau.extensions.worksheetContent.worksheet;
-            
-            // Get the data
-            worksheet.getSummaryDataAsync().then(dataTable => {
-                const columns = dataTable.columns.map(column => column.fieldName);
-                const data = dataTable.data.map(row => 
-                    row.map(cell => cell.value)
-                );
+        window.onload = function() {
+            // Initialize the extension
+            tableau.extensions.initializeAsync().then(function() {
+                // Get the worksheet
+                const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
                 
-                renderTable(columns, data);
-                setupEventListeners(data, columns);
-            });
-        });
-
-        function renderTable(columns, data) {
-            const table = document.createElement('table');
-            
-            // Create header
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            columns.forEach(column => {
-                const th = document.createElement('th');
-                th.textContent = column;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
-            
-            // Create body
-            const tbody = document.createElement('tbody');
-            data.forEach(row => {
-                const tr = document.createElement('tr');
-                row.forEach(cell => {
-                    const td = document.createElement('td');
-                    td.textContent = cell;
-                    tr.appendChild(td);
+                // Get the data
+                worksheet.getSummaryDataAsync().then(function(sumData) {
+                    console.log('Data received:', sumData);
+                    
+                    // Create table
+                    let tableHtml = '<table>';
+                    
+                    // Add headers
+                    tableHtml += '<tr>';
+                    sumData.columns.forEach(function(column) {
+                        tableHtml += '<th>' + column.fieldName + '</th>';
+                    });
+                    tableHtml += '</tr>';
+                    
+                    // Add data
+                    sumData.data.forEach(function(row) {
+                        tableHtml += '<tr>';
+                        row.forEach(function(cell) {
+                            tableHtml += '<td>' + cell.formattedValue + '</td>';
+                        });
+                        tableHtml += '</tr>';
+                    });
+                    
+                    tableHtml += '</table>';
+                    
+                    // Display the table
+                    document.getElementById('tableContainer').innerHTML = tableHtml;
+                }).catch(function(err) {
+                    document.getElementById('tableContainer').innerHTML = 
+                        'Error getting data: ' + err.toString();
                 });
-                tbody.appendChild(tr);
+            }).catch(function(err) {
+                document.getElementById('tableContainer').innerHTML = 
+                    'Error initializing: ' + err.toString();
             });
-            table.appendChild(tbody);
-            
-            const container = document.getElementById('tableContainer');
-            container.innerHTML = '';
-            container.appendChild(table);
-        }
-
-        function setupEventListeners(data, columns) {
-            // Search functionality
-            document.getElementById('searchInput').addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const filteredData = data.filter(row =>
-                    row.some(cell => 
-                        String(cell).toLowerCase().includes(searchTerm)
-                    )
-                );
-                renderTable(columns, filteredData);
-            });
-        }
-
-        function exportToCSV() {
-            const table = document.querySelector('table');
-            let csv = [];
-            
-            // Get headers
-            const headers = [];
-            table.querySelectorAll('th').forEach(th => {
-                headers.push(th.textContent);
-            });
-            csv.push(headers.join(','));
-            
-            // Get data
-            table.querySelectorAll('tbody tr').forEach(tr => {
-                const row = [];
-                tr.querySelectorAll('td').forEach(td => {
-                    row.push(`"${td.textContent}"`);
-                });
-                csv.push(row.join(','));
-            });
-            
-            // Download CSV
-            const csvContent = csv.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.setAttribute('hidden', '');
-            a.setAttribute('href', url);
-            a.setAttribute('download', 'tableau_data.csv');
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
+        };
     </script>
 </body>
 </html>
