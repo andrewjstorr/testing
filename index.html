@@ -1,19 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Debug Table Extension</title>
+    <title>Table Extension</title>
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif;
             margin: 20px;
-        }
-        #debug {
-            background: #f5f5f5;
-            padding: 10px;
-            margin-bottom: 10px;
-            font-family: monospace;
-            white-space: pre-wrap;
         }
         table {
             border-collapse: collapse;
@@ -27,85 +20,65 @@
         th {
             background-color: #f5f5f5;
         }
+        #debug {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+        }
     </style>
 </head>
 <body>
-    <div id="debug">Starting...</div>
-    <div id="tableContainer">Loading...</div>
+    <div id="debug">Initializing...</div>
+    <div id="tableContainer"></div>
 
     <script>
-        function debugLog(message) {
-            const debug = document.getElementById('debug');
-            debug.textContent += '\n' + message;
-            console.log(message);
-        }
-
         window.onload = function() {
-            debugLog('Window loaded');
-            
             // Initialize the extension
-            tableau.extensions.initializeAsync()
-                .then(function() {
-                    debugLog('Extension initialized');
-                    debugLog('Getting dashboard...');
-                    
-                    const dashboard = tableau.extensions.dashboardContent.dashboard;
-                    debugLog('Dashboard: ' + dashboard.name);
-                    
-                    const worksheets = dashboard.worksheets;
-                    debugLog('Found worksheets: ' + worksheets.length);
-                    
-                    worksheets.forEach(ws => debugLog('- ' + ws.name));
-                    
-                    const worksheet = worksheets[0];
-                    debugLog('Using worksheet: ' + worksheet.name);
-                    
-                    debugLog('Getting data...');
-                    return worksheet.getUnderlyingDataAsync();
-                })
-                .then(function(dataTable) {
-                    debugLog('Got data table');
-                    debugLog('Columns: ' + dataTable.columns.length);
-                    debugLog('Rows: ' + dataTable.data.length);
-                    
-                    // Log column names
-                    dataTable.columns.forEach(col => 
-                        debugLog('Column: ' + col.fieldName)
-                    );
+            tableau.extensions.initializeAsync().then(function() {
+                const dashboard = tableau.extensions.dashboardContent.dashboard;
+                document.getElementById('debug').textContent = 'Connected to dashboard: ' + dashboard.name;
+                
+                // Get the first worksheet
+                const worksheet = dashboard.worksheets[0];
+                
+                // Use getUnderlyingTablesAsync for the new data model
+                worksheet.getUnderlyingTablesAsync().then(function(tables) {
+                    if (tables && tables.length > 0) {
+                        // Get the first table's data
+                        return worksheet.getUnderlyingTableDataAsync(tables[0].id);
+                    } else {
+                        throw new Error('No tables found');
+                    }
+                }).then(function(tableData) {
+                    document.getElementById('debug').textContent += '\nGot data with ' + 
+                        tableData.columns.length + ' columns and ' + 
+                        tableData.data.length + ' rows';
                     
                     // Create table
-                    if (dataTable.data.length > 0) {
-                        let tableHtml = '<table>';
-                        
-                        // Headers
-                        tableHtml += '<tr>';
-                        dataTable.columns.forEach(function(column) {
-                            tableHtml += '<th>' + column.fieldName + '</th>';
+                    let html = '<table>';
+                    
+                    // Headers
+                    html += '<tr>';
+                    tableData.columns.forEach(function(column) {
+                        html += '<th>' + column.fieldName + '</th>';
+                    });
+                    html += '</tr>';
+                    
+                    // Data
+                    tableData.data.forEach(function(row) {
+                        html += '<tr>';
+                        row.forEach(function(cell) {
+                            html += '<td>' + cell.formattedValue + '</td>';
                         });
-                        tableHtml += '</tr>';
-                        
-                        // Data
-                        dataTable.data.forEach(function(row) {
-                            tableHtml += '<tr>';
-                            row.forEach(function(cell) {
-                                tableHtml += '<td>' + cell.formattedValue + '</td>';
-                            });
-                            tableHtml += '</tr>';
-                        });
-                        
-                        tableHtml += '</table>';
-                        document.getElementById('tableContainer').innerHTML = tableHtml;
-                        debugLog('Table rendered');
-                    } else {
-                        document.getElementById('tableContainer').innerHTML = 'No data available';
-                        debugLog('No data found');
-                    }
-                })
-                .catch(function(err) {
-                    debugLog('ERROR: ' + err.toString());
-                    document.getElementById('tableContainer').innerHTML = 
-                        'Error: ' + err.toString();
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                    document.getElementById('tableContainer').innerHTML = html;
+                }).catch(function(err) {
+                    document.getElementById('debug').textContent += '\nError: ' + err.message;
                 });
+            });
         };
     </script>
 </body>
