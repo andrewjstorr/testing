@@ -41,56 +41,76 @@
         }
 
         window.onload = function() {
-            log('Window loaded');
-            
-            tableau.extensions.initializeAsync().then(function() {
+            // Initialize with explicit configuration
+            tableau.extensions.initializeAsync({
+                configure: function() { log('Configure called'); }
+            }).then(function() {
                 log('Extension initialized');
                 
                 // Get the worksheet
                 const worksheet = tableau.extensions.worksheetContent.worksheet;
                 log('Got worksheet: ' + worksheet.name);
 
-                // Get the summary data
-                worksheet.getSummaryDataAsync().then(function(sumData) {
-                    log('Got summary data');
-                    log('Columns: ' + sumData.columns.map(c => c.fieldName).join(', '));
-                    log('Rows: ' + sumData.data.length);
-
-                    if (sumData.data.length === 0) {
-                        log('No data available');
-                        return;
+                // Check if we have permission to access the data
+                if (!tableau.extensions.environment.permissionCheck('full-data')) {
+                    log('No full data permission - requesting access');
+                    // If we don't have permission, let's try to get it
+                    return tableau.extensions.requestFullDataPermission();
+                } else {
+                    log('Full data permission already granted');
+                    return Promise.resolve();
+                }
+            }).then(function() {
+                // Now that we have permission, get the data
+                const worksheet = tableau.extensions.worksheetContent.worksheet;
+                
+                // First try getUnderlyingTablesAsync
+                return worksheet.getUnderlyingTablesAsync().then(function(tables) {
+                    log('Found ' + tables.length + ' underlying tables');
+                    if (tables.length > 0) {
+                        return worksheet.getUnderlyingTableDataAsync(tables[0].id);
+                    } else {
+                        // If no underlying tables, fall back to summary data
+                        log('No underlying tables, trying summary data');
+                        return worksheet.getSummaryDataAsync();
                     }
+                }).catch(function(err) {
+                    // If getUnderlyingTablesAsync fails, try summary data
+                    log('Error getting underlying tables: ' + err);
+                    log('Falling back to summary data');
+                    return worksheet.getSummaryDataAsync();
+                });
+            }).then(function(tableData) {
+                log('Got data successfully');
+                log('Columns: ' + tableData.columns.map(c => c.fieldName).join(', '));
+                log('Rows: ' + tableData.data.length);
 
-                    // Create table HTML
-                    let tableHtml = '<table>';
-                    
-                    // Headers
+                // Create table HTML
+                let tableHtml = '<table>';
+                
+                // Headers
+                tableHtml += '<tr>';
+                tableData.columns.forEach(function(column) {
+                    tableHtml += '<th>' + column.fieldName + '</th>';
+                });
+                tableHtml += '</tr>';
+                
+                // Data
+                tableData.data.forEach(function(row) {
                     tableHtml += '<tr>';
-                    sumData.columns.forEach(function(column) {
-                        tableHtml += '<th>' + column.fieldName + '</th>';
+                    row.forEach(function(cell) {
+                        tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
                     });
                     tableHtml += '</tr>';
-                    
-                    // Data
-                    sumData.data.forEach(function(row) {
-                        tableHtml += '<tr>';
-                        row.forEach(function(cell) {
-                            tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
-                        });
-                        tableHtml += '</tr>';
-                    });
-                    
-                    tableHtml += '</table>';
-                    document.getElementById('tableContainer').innerHTML = tableHtml;
-                    log('Table rendered');
-                    
-                }).catch(function(err) {
-                    log('Error getting data: ' + err.toString());
-                    log('Error details: ' + JSON.stringify(err));
                 });
+                
+                tableHtml += '</table>';
+                document.getElementById('tableContainer').innerHTML = tableHtml;
+                log('Table rendered');
+                
             }).catch(function(err) {
-                log('Error initializing: ' + err.toString());
-                log('Error details: ' + JSON.stringify(err));
+                log('ERROR: ' + err.toString());
+                log('Error details: ' + JSON.stringify(err, Object.getOwnPropertyNames(err)));
             });
         };
 
