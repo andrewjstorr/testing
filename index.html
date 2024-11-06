@@ -2,8 +2,8 @@
 <html>
 <head>
     <title>Tableau Table Extension</title>
-    <!-- Make sure this script tag is exactly as shown -->
-    <script src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
+    <!-- Updated Tableau API script -->
+    <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif;
@@ -61,25 +61,29 @@
         let worksheetData = [];
         let columns = [];
 
-        async function initialize() {
-            try {
-                await tableau.extensions.initializeAsync();
-                const dashboard = tableau.extensions.dashboardContent.dashboard;
-                const worksheet = dashboard.worksheets[0];
-                
-                const dataTable = await worksheet.getSummaryDataAsync();
+        // Initialize the extension
+        tableau.extensions.initializeAsync().then(() => {
+            // Get the worksheet
+            const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
+            
+            // Get the summary data
+            worksheet.getSummaryDataAsync().then((dataTable) => {
+                // Get column names
                 columns = dataTable.columns.map(column => column.fieldName);
+                
+                // Get data
                 worksheetData = dataTable.data.map(row => 
                     row.map(cell => cell.value)
                 );
                 
+                // Render the table
                 renderTable(worksheetData);
                 setupEventListeners();
-            } catch (err) {
-                console.error('Error initializing extension:', err);
-                document.body.innerHTML = `Error initializing extension: ${err.message}`;
-            }
-        }
+            });
+        }).catch((error) => {
+            console.error('Error initializing extension:', error);
+            document.body.innerHTML = `Error initializing extension: ${error.message}`;
+        });
 
         function renderTable(data) {
             const table = document.createElement('table');
@@ -167,8 +171,6 @@
             a.click();
             document.body.removeChild(a);
         }
-
-        initialize();
     </script>
 </body>
 </html>
