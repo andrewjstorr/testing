@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Detail Table Extension</title>
+    <title>Debug Table Extension</title>
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif;
             margin: 20px;
         }
-        #status {
+        #debug {
+            background: #f5f5f5;
+            padding: 10px;
             margin-bottom: 10px;
-            color: #666;
+            font-family: monospace;
+            white-space: pre-wrap;
         }
         table {
             border-collapse: collapse;
@@ -23,61 +26,86 @@
         }
         th {
             background-color: #f5f5f5;
-            position: sticky;
-            top: 0;
         }
     </style>
 </head>
 <body>
-    <div id="status">Loading...</div>
-    <div id="tableContainer"></div>
+    <div id="debug">Starting...</div>
+    <div id="tableContainer">Loading...</div>
 
     <script>
+        function debugLog(message) {
+            const debug = document.getElementById('debug');
+            debug.textContent += '\n' + message;
+            console.log(message);
+        }
+
         window.onload = function() {
+            debugLog('Window loaded');
+            
             // Initialize the extension
-            tableau.extensions.initializeAsync().then(function() {
-                const dashboard = tableau.extensions.dashboardContent.dashboard;
-                const worksheet = dashboard.worksheets[0];
-                
-                document.getElementById('status').textContent = 'Connected to worksheet: ' + worksheet.name;
-                
-                // Get the underlying data
-                worksheet.getUnderlyingDataAsync().then(function(dataTable) {
-                    document.getElementById('status').textContent += '\nGot data: ' + dataTable.columns.length + ' columns';
+            tableau.extensions.initializeAsync()
+                .then(function() {
+                    debugLog('Extension initialized');
+                    debugLog('Getting dashboard...');
+                    
+                    const dashboard = tableau.extensions.dashboardContent.dashboard;
+                    debugLog('Dashboard: ' + dashboard.name);
+                    
+                    const worksheets = dashboard.worksheets;
+                    debugLog('Found worksheets: ' + worksheets.length);
+                    
+                    worksheets.forEach(ws => debugLog('- ' + ws.name));
+                    
+                    const worksheet = worksheets[0];
+                    debugLog('Using worksheet: ' + worksheet.name);
+                    
+                    debugLog('Getting data...');
+                    return worksheet.getUnderlyingDataAsync();
+                })
+                .then(function(dataTable) {
+                    debugLog('Got data table');
+                    debugLog('Columns: ' + dataTable.columns.length);
+                    debugLog('Rows: ' + dataTable.data.length);
+                    
+                    // Log column names
+                    dataTable.columns.forEach(col => 
+                        debugLog('Column: ' + col.fieldName)
+                    );
                     
                     // Create table
-                    let tableHtml = '<table>';
-                    
-                    // Add headers
-                    tableHtml += '<tr>';
-                    dataTable.columns.forEach(function(column) {
-                        tableHtml += '<th>' + column.fieldName + '</th>';
-                    });
-                    tableHtml += '</tr>';
-                    
-                    // Add data
-                    dataTable.data.forEach(function(row) {
+                    if (dataTable.data.length > 0) {
+                        let tableHtml = '<table>';
+                        
+                        // Headers
                         tableHtml += '<tr>';
-                        row.forEach(function(cell) {
-                            tableHtml += '<td>' + cell.formattedValue + '</td>';
+                        dataTable.columns.forEach(function(column) {
+                            tableHtml += '<th>' + column.fieldName + '</th>';
                         });
                         tableHtml += '</tr>';
-                    });
-                    
-                    tableHtml += '</table>';
-                    
-                    // Display the table
-                    document.getElementById('tableContainer').innerHTML = tableHtml;
-                    document.getElementById('status').textContent = 'Data loaded successfully';
-                    
-                }).catch(function(err) {
-                    document.getElementById('status').textContent = 'Error getting data: ' + err.toString();
-                    console.error('Data error:', err);
+                        
+                        // Data
+                        dataTable.data.forEach(function(row) {
+                            tableHtml += '<tr>';
+                            row.forEach(function(cell) {
+                                tableHtml += '<td>' + cell.formattedValue + '</td>';
+                            });
+                            tableHtml += '</tr>';
+                        });
+                        
+                        tableHtml += '</table>';
+                        document.getElementById('tableContainer').innerHTML = tableHtml;
+                        debugLog('Table rendered');
+                    } else {
+                        document.getElementById('tableContainer').innerHTML = 'No data available';
+                        debugLog('No data found');
+                    }
+                })
+                .catch(function(err) {
+                    debugLog('ERROR: ' + err.toString());
+                    document.getElementById('tableContainer').innerHTML = 
+                        'Error: ' + err.toString();
                 });
-            }).catch(function(err) {
-                document.getElementById('status').textContent = 'Error initializing: ' + err.toString();
-                console.error('Init error:', err);
-            });
         };
     </script>
 </body>
