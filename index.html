@@ -47,9 +47,14 @@
             width: 200px;
             margin-right: 10px;
         }
+        #status {
+            color: #666;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
+    <div id="status">Loading...</div>
     <div class="search-container">
         <input type="text" id="searchInput" placeholder="Search...">
         <button onclick="exportToCSV()">Export to CSV</button>
@@ -62,15 +67,30 @@
 
         // Initialize the extension
         tableau.extensions.initializeAsync().then(() => {
-            // Get all worksheets
-            const worksheets = tableau.extensions.dashboardContent.dashboard.worksheets;
+            const dashboard = tableau.extensions.dashboardContent.dashboard;
             
-            // Use the active worksheet or the first one
-            const worksheet = worksheets.find(w => w.name === 'Sheet 1') || worksheets[0];
+            // Show what worksheets are available
+            console.log('Available worksheets:', dashboard.worksheets.map(w => w.name));
             
-            if (worksheet) {
+            // Get the worksheet
+            const worksheet = dashboard.worksheets.find(w => w.name === 'Sheet 1');
+            
+            if (!worksheet) {
+                document.getElementById('status').textContent = 'Worksheet not found. Available worksheets: ' + 
+                    dashboard.worksheets.map(w => w.name).join(', ');
+                return;
+            }
+
+            // Listen for data changes
+            worksheet.addEventListener(tableau.TableauEventType.FilterChanged, getData);
+            worksheet.addEventListener(tableau.TableauEventType.MarkSelectionChanged, getData);
+            
+            // Get initial data
+            getData();
+
+            function getData() {
                 // Get the data
-                worksheet.getSummaryDataAsync().then((dataTable) => {
+                worksheet.getUnderlyingDataAsync().then(dataTable => {
                     console.log('Data received:', dataTable);
                     
                     // Get column names
@@ -83,19 +103,23 @@
                     );
                     console.log('Data:', worksheetData);
                     
+                    // Update status
+                    document.getElementById('status').textContent = 
+                        `Loaded ${worksheetData.length} rows and ${columns.length} columns`;
+                    
                     // Render the table
                     renderTable(worksheetData);
                     setupEventListeners();
                 }).catch(error => {
                     console.error('Error getting data:', error);
-                    document.body.innerHTML = `Error getting data: ${error.message}`;
+                    document.getElementById('status').textContent = 
+                        `Error getting data: ${error.message}`;
                 });
-            } else {
-                document.body.innerHTML = 'No worksheet found';
             }
         }).catch((error) => {
             console.error('Error initializing extension:', error);
-            document.body.innerHTML = `Error initializing extension: ${error.message}`;
+            document.getElementById('status').textContent = 
+                `Error initializing extension: ${error.message}`;
         });
 
         function renderTable(data) {
@@ -123,7 +147,7 @@
                 const tr = document.createElement('tr');
                 row.forEach(cell => {
                     const td = document.createElement('td');
-                    td.textContent = cell;
+                    td.textContent = cell !== null ? cell : '';
                     td.contentEditable = true;
                     tr.appendChild(td);
                 });
