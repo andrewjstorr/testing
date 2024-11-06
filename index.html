@@ -1,218 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tableau Table Extension</title>
+    <title>Simple Table Extension</title>
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
-    <style>
-        body { 
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        #tableContainer {
-            max-height: 600px;
-            overflow: auto;
-            border: 1px solid #ddd;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th {
-            background-color: #f5f5f5;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        td[contenteditable="true"]:focus {
-            outline: 2px solid #4CAF50;
-            outline-offset: -2px;
-        }
-        .sort-btn {
-            cursor: pointer;
-            padding: 0 5px;
-        }
-        .sort-btn:hover {
-            color: #4CAF50;
-        }
-        .search-container {
-            margin-bottom: 10px;
-        }
-        #searchInput {
-            padding: 5px;
-            width: 200px;
-            margin-right: 10px;
-        }
-        #status {
-            color: #666;
-            margin-bottom: 10px;
-        }
-    </style>
 </head>
 <body>
-    <div id="status">Loading...</div>
-    <div class="search-container">
-        <input type="text" id="searchInput" placeholder="Search...">
-        <button onclick="exportToCSV()">Export to CSV</button>
-    </div>
-    <div id="tableContainer"></div>
+    <div id="output">Loading...</div>
 
     <script>
-        let worksheetData = [];
-        let columns = [];
-
-        // Initialize the extension
-        tableau.extensions.initializeAsync().then(() => {
-            const dashboard = tableau.extensions.dashboardContent.dashboard;
-            
-            // Show what worksheets are available
-            console.log('Available worksheets:', dashboard.worksheets.map(w => w.name));
-            
-            // Get the worksheet
-            const worksheet = dashboard.worksheets.find(w => w.name === 'Sheet 1');
-            
-            if (!worksheet) {
-                document.getElementById('status').textContent = 'Worksheet not found. Available worksheets: ' + 
-                    dashboard.worksheets.map(w => w.name).join(', ');
-                return;
-            }
-
-            // Listen for data changes
-            worksheet.addEventListener(tableau.TableauEventType.FilterChanged, getData);
-            worksheet.addEventListener(tableau.TableauEventType.MarkSelectionChanged, getData);
-            
-            // Get initial data
-            getData();
-
-            function getData() {
-                // Get the data
-                worksheet.getUnderlyingDataAsync().then(dataTable => {
-                    console.log('Data received:', dataTable);
+        window.onload = function() {
+            // Try to initialize the extension
+            try {
+                tableau.extensions.initializeAsync().then(function() {
+                    document.getElementById('output').innerHTML = 'Extension initialized';
                     
-                    // Get column names
-                    columns = dataTable.columns.map(column => column.fieldName);
-                    console.log('Columns:', columns);
+                    // Get the dashboard and worksheets
+                    const dashboard = tableau.extensions.dashboardContent.dashboard;
+                    const worksheet = dashboard.worksheets[0]; // Get first worksheet
                     
-                    // Get data
-                    worksheetData = dataTable.data.map(row => 
-                        row.map(cell => cell.value)
-                    );
-                    console.log('Data:', worksheetData);
-                    
-                    // Update status
-                    document.getElementById('status').textContent = 
-                        `Loaded ${worksheetData.length} rows and ${columns.length} columns`;
-                    
-                    // Render the table
-                    renderTable(worksheetData);
-                    setupEventListeners();
-                }).catch(error => {
-                    console.error('Error getting data:', error);
-                    document.getElementById('status').textContent = 
-                        `Error getting data: ${error.message}`;
+                    if (worksheet) {
+                        document.getElementById('output').innerHTML += '<br>Found worksheet: ' + worksheet.name;
+                        
+                        // Try to get data
+                        worksheet.getSummaryDataAsync().then(function(data) {
+                            let html = '<table border="1">';
+                            
+                            // Add headers
+                            html += '<tr>';
+                            data.columns.forEach(function(column) {
+                                html += '<th>' + column.fieldName + '</th>';
+                            });
+                            html += '</tr>';
+                            
+                            // Add data
+                            data.data.forEach(function(row) {
+                                html += '<tr>';
+                                row.forEach(function(cell) {
+                                    html += '<td>' + cell.value + '</td>';
+                                });
+                                html += '</tr>';
+                            });
+                            
+                            html += '</table>';
+                            document.getElementById('output').innerHTML += html;
+                        });
+                    } else {
+                        document.getElementById('output').innerHTML += '<br>No worksheet found';
+                    }
                 });
+            } catch (e) {
+                document.getElementById('output').innerHTML = 'Error: ' + e.message;
             }
-        }).catch((error) => {
-            console.error('Error initializing extension:', error);
-            document.getElementById('status').textContent = 
-                `Error initializing extension: ${error.message}`;
-        });
-
-        function renderTable(data) {
-            if (!data || data.length === 0) {
-                document.getElementById('tableContainer').innerHTML = 'No data available';
-                return;
-            }
-
-            const table = document.createElement('table');
-            
-            // Create header
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            columns.forEach(column => {
-                const th = document.createElement('th');
-                th.innerHTML = `${column} <span class="sort-btn">↕</span>`;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
-            
-            // Create body
-            const tbody = document.createElement('tbody');
-            data.forEach(row => {
-                const tr = document.createElement('tr');
-                row.forEach(cell => {
-                    const td = document.createElement('td');
-                    td.textContent = cell !== null ? cell : '';
-                    td.contentEditable = true;
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            
-            const container = document.getElementById('tableContainer');
-            container.innerHTML = '';
-            container.appendChild(table);
-        }
-
-        function setupEventListeners() {
-            // Sort functionality
-            document.querySelectorAll('th').forEach((th, index) => {
-                th.addEventListener('click', () => sortTable(index));
-            });
-
-            // Search functionality
-            document.getElementById('searchInput').addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const filteredData = worksheetData.filter(row =>
-                    row.some(cell => 
-                        String(cell).toLowerCase().includes(searchTerm)
-                    )
-                );
-                renderTable(filteredData);
-            });
-        }
-
-        function sortTable(columnIndex) {
-            worksheetData.sort((a, b) => {
-                const valueA = a[columnIndex];
-                const valueB = b[columnIndex];
-                
-                if (typeof valueA === 'number' && typeof valueB === 'number') {
-                    return valueA - valueB;
-                }
-                
-                return String(valueA).localeCompare(String(valueB));
-            });
-            
-            renderTable(worksheetData);
-        }
-
-        function exportToCSV() {
-            const csvContent = [
-                columns.join(','),
-                ...worksheetData.map(row => 
-                    row.map(cell => 
-                        typeof cell === 'string' ? `"${cell}"` : cell
-                    ).join(',')
-                )
-            ].join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.setAttribute('hidden', '');
-            a.setAttribute('href', url);
-            a.setAttribute('download', 'tableau_data.csv');
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
+        };
     </script>
 </body>
 </html>
