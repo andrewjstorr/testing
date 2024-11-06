@@ -10,31 +10,58 @@
 <body>
     <h1>My First Tableau Extension</h1>
     <button id="refreshData">Refresh Data</button>
-    <p id="dataDisplay"></p>
+    
+    <!-- Table to display worksheet data -->
+    <table id="dataDisplay" border="1">
+        <thead>
+            <tr id="tableHeaderRow"></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
 
     <script>
         // Wait for the Tableau Extension API to initialize
         tableau.extensions.initializeAsync().then(() => {
             document.getElementById('refreshData').addEventListener('click', refreshData);
-
+            
             // Initial load of data
             refreshData();
         });
 
-        // Function to refresh data from the active worksheet
+        // Function to refresh data from the active worksheet and display it in a table
         function refreshData() {
             // Get the first worksheet in the dashboard
             const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
             
             // Fetch summary data from the worksheet
             worksheet.getSummaryDataAsync().then((sumData) => {
-                const dataDisplay = document.getElementById('dataDisplay');
-                dataDisplay.innerHTML = '';
+                const tableHeaderRow = document.getElementById('tableHeaderRow');
+                const tableBody = document.getElementById('tableBody');
+                
+                // Clear previous data in the table
+                tableHeaderRow.innerHTML = '';
+                tableBody.innerHTML = '';
 
-                // Extract data and display it
+                // Get the columns and data from the summary data
+                const columns = sumData.columns;
                 const data = sumData.data;
+
+                // Create table headers
+                columns.forEach(column => {
+                    const headerCell = document.createElement('th');
+                    headerCell.textContent = column.fieldName;
+                    tableHeaderRow.appendChild(headerCell);
+                });
+
+                // Populate table rows with data
                 data.forEach(row => {
-                    dataDisplay.innerHTML += `<p>${row.map(cell => cell.formattedValue).join(', ')}</p>`;
+                    const rowElement = document.createElement('tr');
+                    row.forEach(cell => {
+                        const cellElement = document.createElement('td');
+                        cellElement.textContent = cell.formattedValue;
+                        rowElement.appendChild(cellElement);
+                    });
+                    tableBody.appendChild(rowElement);
                 });
             });
         }
