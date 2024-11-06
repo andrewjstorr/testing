@@ -1,138 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Table Extension</title>
-    <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
-    <style>
-        body { 
-            font-family: Arial, sans-serif;
-        margin: 20px;
-        }
-        #debug {
-            background: #f0f0f0;
-        padding: 10px;
-            margin-bottom: 10px;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-        table {
-            border-collapse: collapse;
-        width: 100%;
-        }
-        th, td {
-            border: 1px solid #ddd;
-        padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f5f5f5;
-        cursor: pointer; /* Indicate that headers are clickable for sorting */
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Tableau Extension</title>
+    <!-- Link to the Tableau Extensions API -->
+    <script src="https://tableau.github.io/extensions-api/lib/tableau-extensions-1.latest.js"></script>
 </head>
 <body>
-    <div id="debug">Initializing...</div>
-    <div id="tableContainer"></div>
+    <h1>My First Tableau Extension</h1>
+    <button id="refreshData">Refresh Data</button>
+    <p id="dataDisplay"></p>
 
     <script>
-        function log(message) {
-            const debug = document.getElementById('debug');
-        debug.innerHTML += '\n' + message;
-            console.log(message);
-        }
+        // Wait for the Tableau Extension API to initialize
+        tableau.extensions.initializeAsync().then(() => {
+            document.getElementById('refreshData').addEventListener('click', refreshData);
 
-        window.onload = async function() {
-            try {
-                await tableau.extensions.initializeAsync({
-                    configure: function() { log('Configure called'); }
-                });
-                log('Extension initialized');
-    
-                const worksheet = tableau.extensions.worksheetContent.worksheet;
-                log('Got worksheet: ' + worksheet.name);
+            // Initial load of data
+            refreshData();
+        });
 
-                if (!tableau.extensions.environment.permissionCheck('full-data')) {
-                    log('No full data permission - requesting access');
-                    await tableau.extensions.requestFullDataPermission();
-                } else {
-                    log('Full data permission already granted');
-                }
+        // Function to refresh data from the active worksheet
+        function refreshData() {
+            // Get the first worksheet in the dashboard
+            const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
+            
+            // Fetch summary data from the worksheet
+            worksheet.getSummaryDataAsync().then((sumData) => {
+                const dataDisplay = document.getElementById('dataDisplay');
+                dataDisplay.innerHTML = '';
 
-                let tableData;
-                try {
-                    const tables = await worksheet.getUnderlyingTablesAsync();
-                    log('Found ' + tables.length + ' underlying tables');
-                    if (tables.length > 0) {
-                        tableData = await worksheet.getUnderlyingTableDataAsync(tables[0].id);
-                    } else {
-                        log('No underlying tables, trying summary data');
-                        tableData = await worksheet.getSummaryDataAsync();
-                    }
-                } catch (err) {
-                    log('Error getting underlying tables: ' + err);
-                    log('Falling back to summary data');
-                    tableData = await worksheet.getSummaryDataAsync();
-                }
-
-                log('Got data successfully');
-                log('Columns: ' + tableData.columns.map(c => c.fieldName).join(', '));
-                log('Rows: ' + tableData.data.length);
-
-                renderTable(tableData);
-
-            } catch (err) {
-                log('ERROR: ' + err.toString());
-                log('Error details: ' + JSON.stringify(err, Object.getOwnPropertyNames(err)));
-            }
-        };
-
-        function renderTable(tableData) {
-            let tableHtml = '<table>';
-            tableHtml += '<thead><tr>';
-            tableData.columns.forEach((column, index) => {
-                tableHtml += `<th data-colindex="${index}">${column.fieldName}</th>`;
-            });
-            tableHtml += '</tr></thead>';
-            tableHtml += '<tbody>';
-            tableData.data.forEach(function(row) {
-                tableHtml += '<tr>';
-                row.forEach(function(cell) {
-                    tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
-                });
-                tableHtml += '</tr>';
-            });
-            tableHtml += '</tbody></table>';
-            document.getElementById('tableContainer').innerHTML = tableHtml;
-
-            // Add sorting functionality
-            const table = document.querySelector('table');
-            const headers = table.querySelectorAll('th');
-            headers.forEach(header => {
-                header.addEventListener('click', () => {
-                    const colIndex = header.dataset.colindex;
-                    sortTable(table, colIndex);
+                // Extract data and display it
+                const data = sumData.data;
+                data.forEach(row => {
+                    dataDisplay.innerHTML += `<p>${row.map(cell => cell.formattedValue).join(', ')}</p>`;
                 });
             });
         }
-
-        function sortTable(table, colIndex) {
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-
-            rows.sort((a, b) => {
-                const aValue = a.cells[colIndex].textContent;
-                const bValue = b.cells[colIndex].textContent;
-                return aValue.localeCompare(bValue);
-            });
-
-            rows.forEach(row => tbody.appendChild(row));
-        }
-
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-            log('ERROR: ' + msg);
-            log('Location: ' + lineNo + ':' + columnNo);
-            return false;
-        };
     </script>
 </body>
 </html>
