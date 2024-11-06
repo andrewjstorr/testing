@@ -8,6 +8,13 @@
             font-family: Arial, sans-serif;
             margin: 20px;
         }
+        #debug {
+            background: #f0f0f0;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
         table {
             border-collapse: collapse;
             width: 100%;
@@ -20,11 +27,6 @@
         th {
             background-color: #f5f5f5;
         }
-        #debug {
-            margin-bottom: 10px;
-            padding: 10px;
-            background: #f5f5f5;
-        }
     </style>
 </head>
 <body>
@@ -32,53 +34,71 @@
     <div id="tableContainer"></div>
 
     <script>
+        function log(message) {
+            const debug = document.getElementById('debug');
+            debug.innerHTML += '\n' + message;
+            console.log(message);
+        }
+
         window.onload = function() {
-            // Initialize the extension
+            log('Window loaded');
+            
             tableau.extensions.initializeAsync().then(function() {
-                const dashboard = tableau.extensions.dashboardContent.dashboard;
-                document.getElementById('debug').textContent = 'Connected to dashboard: ' + dashboard.name;
+                log('Extension initialized');
                 
-                // Get the first worksheet
-                const worksheet = dashboard.worksheets[0];
-                
-                // Use getUnderlyingTablesAsync for the new data model
-                worksheet.getUnderlyingTablesAsync().then(function(tables) {
-                    if (tables && tables.length > 0) {
-                        // Get the first table's data
-                        return worksheet.getUnderlyingTableDataAsync(tables[0].id);
-                    } else {
-                        throw new Error('No tables found');
+                // Get the worksheet
+                const worksheet = tableau.extensions.worksheetContent.worksheet;
+                log('Got worksheet: ' + worksheet.name);
+
+                // Get the summary data
+                worksheet.getSummaryDataAsync().then(function(sumData) {
+                    log('Got summary data');
+                    log('Columns: ' + sumData.columns.map(c => c.fieldName).join(', '));
+                    log('Rows: ' + sumData.data.length);
+
+                    if (sumData.data.length === 0) {
+                        log('No data available');
+                        return;
                     }
-                }).then(function(tableData) {
-                    document.getElementById('debug').textContent += '\nGot data with ' + 
-                        tableData.columns.length + ' columns and ' + 
-                        tableData.data.length + ' rows';
-                    
-                    // Create table
-                    let html = '<table>';
+
+                    // Create table HTML
+                    let tableHtml = '<table>';
                     
                     // Headers
-                    html += '<tr>';
-                    tableData.columns.forEach(function(column) {
-                        html += '<th>' + column.fieldName + '</th>';
+                    tableHtml += '<tr>';
+                    sumData.columns.forEach(function(column) {
+                        tableHtml += '<th>' + column.fieldName + '</th>';
                     });
-                    html += '</tr>';
+                    tableHtml += '</tr>';
                     
                     // Data
-                    tableData.data.forEach(function(row) {
-                        html += '<tr>';
+                    sumData.data.forEach(function(row) {
+                        tableHtml += '<tr>';
                         row.forEach(function(cell) {
-                            html += '<td>' + cell.formattedValue + '</td>';
+                            tableHtml += '<td>' + (cell.formattedValue || '') + '</td>';
                         });
-                        html += '</tr>';
+                        tableHtml += '</tr>';
                     });
                     
-                    html += '</table>';
-                    document.getElementById('tableContainer').innerHTML = html;
+                    tableHtml += '</table>';
+                    document.getElementById('tableContainer').innerHTML = tableHtml;
+                    log('Table rendered');
+                    
                 }).catch(function(err) {
-                    document.getElementById('debug').textContent += '\nError: ' + err.message;
+                    log('Error getting data: ' + err.toString());
+                    log('Error details: ' + JSON.stringify(err));
                 });
+            }).catch(function(err) {
+                log('Error initializing: ' + err.toString());
+                log('Error details: ' + JSON.stringify(err));
             });
+        };
+
+        // Add error handling for uncaught errors
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            log('ERROR: ' + msg);
+            log('Location: ' + lineNo + ':' + columnNo);
+            return false;
         };
     </script>
 </body>
