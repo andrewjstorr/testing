@@ -1,0 +1,10 @@
+{
+  "name": "Excel-like Table Extension",
+  "version": "1.0.0",
+  "description": "Interactive table extension with Excel-like features",
+  "extension_api_version": "1.0",
+  "url": "https://github.com/andrewjstorr/tableau-wr.git",
+  "permissions": [
+    "full_data"
+  ]
+}
