@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Table Extension</title>
+    <title>Detail Table Extension</title>
     <script type="text/javascript" src="https://extensions.tableau.com/resources/tableau.extensions.1.latest.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif;
             margin: 20px;
+        }
+        #status {
+            margin-bottom: 10px;
+            color: #666;
         }
         table {
             border-collapse: collapse;
@@ -19,35 +23,40 @@
         }
         th {
             background-color: #f5f5f5;
+            position: sticky;
+            top: 0;
         }
     </style>
 </head>
 <body>
-    <div id="tableContainer">Loading...</div>
+    <div id="status">Loading...</div>
+    <div id="tableContainer"></div>
 
     <script>
         window.onload = function() {
             // Initialize the extension
             tableau.extensions.initializeAsync().then(function() {
-                // Get the worksheet
-                const worksheet = tableau.extensions.dashboardContent.dashboard.worksheets[0];
+                const dashboard = tableau.extensions.dashboardContent.dashboard;
+                const worksheet = dashboard.worksheets[0];
                 
-                // Get the data
-                worksheet.getSummaryDataAsync().then(function(sumData) {
-                    console.log('Data received:', sumData);
+                document.getElementById('status').textContent = 'Connected to worksheet: ' + worksheet.name;
+                
+                // Get the underlying data
+                worksheet.getUnderlyingDataAsync().then(function(dataTable) {
+                    document.getElementById('status').textContent += '\nGot data: ' + dataTable.columns.length + ' columns';
                     
                     // Create table
                     let tableHtml = '<table>';
                     
                     // Add headers
                     tableHtml += '<tr>';
-                    sumData.columns.forEach(function(column) {
+                    dataTable.columns.forEach(function(column) {
                         tableHtml += '<th>' + column.fieldName + '</th>';
                     });
                     tableHtml += '</tr>';
                     
                     // Add data
-                    sumData.data.forEach(function(row) {
+                    dataTable.data.forEach(function(row) {
                         tableHtml += '<tr>';
                         row.forEach(function(cell) {
                             tableHtml += '<td>' + cell.formattedValue + '</td>';
@@ -59,13 +68,15 @@
                     
                     // Display the table
                     document.getElementById('tableContainer').innerHTML = tableHtml;
+                    document.getElementById('status').textContent = 'Data loaded successfully';
+                    
                 }).catch(function(err) {
-                    document.getElementById('tableContainer').innerHTML = 
-                        'Error getting data: ' + err.toString();
+                    document.getElementById('status').textContent = 'Error getting data: ' + err.toString();
+                    console.error('Data error:', err);
                 });
             }).catch(function(err) {
-                document.getElementById('tableContainer').innerHTML = 
-                    'Error initializing: ' + err.toString();
+                document.getElementById('status').textContent = 'Error initializing: ' + err.toString();
+                console.error('Init error:', err);
             });
         };
     </script>
